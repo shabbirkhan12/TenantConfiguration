@@ -1,7 +1,7 @@
 {
     "tenants": [
         {
-            "tenantId": <tenant-ID>,
+            "tenantId": "<tenant-ID>",
             "users": [
                 {
                     "login_name": "volodymyr.vedmedera",
