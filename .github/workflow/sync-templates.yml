@@ -1,304 +1,273 @@
-name: Sync Template Files
+  - name: Setup Node.js
+    uses: actions/setup-node@v4
+    with:
+      node-version: '18'
 
-on:
-  push:
-    paths:
-      - '_template/**'
-    branches: [ Dev, QA, Production ]
-  
-  pull_request:
-    paths:
-      - '_template/**'
-  
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Dry run (show changes without applying)'
-        type: boolean
-        default: false
-      target_environments:
-        description: 'Target environments to sync (comma separated)'
-        type: string
-        default: 'devops,feature,synergis'
+  - name: Install Dependencies
+    run: |
+      mkdir -p .github/actions/sync-templates
+      cd .github/actions/sync-templates
+      if [ ! -f package.json ]; then
+        npm init -y >/dev/null 2>&1
+        npm install @actions/core >/dev/null 2>&1
+      else
+        npm install >/dev/null 2>&1
+      fi
 
-jobs:
-  sync-templates:
-    runs-on: ubuntu-22.04 
-    
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        fetch-depth: 0
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-
-    - name: Install Dependencies
-      run: |
-        mkdir -p .github/actions/sync-templates
-        cd .github/actions/sync-templates
-        if [ ! -f package.json ]; then
-          npm init -y
-          npm install @actions/core
-        else
-          npm install
-        fi
-
-    - name: Validate Template Files
-      run: |
-        echo "Validating template files..."
-        
-        # Validate JSON files
-        json_files=$(find _template -name "*.json" 2>/dev/null || true)
-        if [ -n "$json_files" ]; then
-          for file in $json_files; do
-            echo "  Validating: $file"
-            node -e "
-              try {
-                JSON.parse(require('fs').readFileSync('$file', 'utf8'));
-                console.log('     Valid JSON');
-              } catch(e) {
-                console.error('     Invalid JSON:', e.message);
-                process.exit(1);
-              }
-            "
-          done
-        fi
-        
-        echo " All template files validated successfully"
-
-    - name: Run Template Sync
-      id: sync
-      run: |
-        node << 'EOF'
-        const fs = require('fs');
-        const path = require('path');
-        
-        // Your existing repository structure mapping
-        const fileMappings = [
-          {
-            template: '_template/Viewer/AuthProxy/appsettings.json',
-            targets: [
-              'devops/Viewer/AuthProxy/appsettings.json',
-              'feature/Viewer/AuthProxy/appsettings.json', 
-              'synergis/Viewer/AuthProxy/appsettings.json'
-            ]
-          },
-          {
-            template: '_template/BIM/appsettings.json',
-            targets: [
-              'devops/BIM/appsettings.json',
-              'feature/BIM/appsettings.json',
-              'synergis/BIM/appsettings.json'
-            ]
-          },
-          {
-            template: '_template/Conversion/appsettings.json',
-            targets: [
-              'devops/Conversion/appsettings.json',
-              'feature/Conversion/appsettings.json',
-              'synergis/Conversion/appsettings.json'
-            ]
-          },
-          {
-            template: '_template/ConverterWorker/appsettings.json',
-            targets: [
-              'devops/ConverterWorker/appsettings.json',
-              'feature/ConverterWorker/appsettings.json',
-              'synergis/ConverterWorker/appsettings.json'
-            ]
-          },
-          {
-            template: '_template/WebAPI/appsettings.json',
-            targets: [
-              'devops/WebAPI/appsettings.json',
-              'feature/WebAPI/appsettings.json',
-              'synergis/WebAPI/appsettings.json'
-            ]
-          },
-          {
-            template: '_template/WebAPI/AdeptTenantLicense.json',
-            targets: [
-              'devops/WebAPI/AdeptTenantLicense.json',
-              'feature/WebAPI/AdeptTenantLicense.json',
-              'synergis/WebAPI/AdeptTenantLicense.json'
-            ]
-          },
-          {
-            template: '_template/WebAPI/cognito-users.json',
-            targets: [
-              'devops/WebAPI/cognito-users.json',
-              'feature/WebAPI/cognito-users.json',
-              'synergis/WebAPI/cognito-users.json'
-            ]
-          },
-          {
-            template: '_template/WebUI/AdeptViewerConfiguration.json',
-            targets: [
-              'devops/WebUI/AdeptViewerConfiguration.json',
-              'feature/WebUI/AdeptViewerConfiguration.json',
-              'synergis/WebUI/AdeptViewerConfiguration.json'
-            ]
-          },
-          {
-            template: '_template/Streaming/Config.js',
-            targets: [
-              'devops/Streaming/Config.js',
-              'feature/Streaming/Config.js'
-              // Note: synergis doesn't have Streaming based on your structure
-            ]
-          },
-          {
-            template: '_template/WebUI/.env',
-            targets: [
-              'synergis/WebUI/.env'
-              // Note: Only synergis has .env in WebUI based on your structure
-            ]
-          }
-        ];
-
-        let changedFiles = [];
-        let syncedCount = 0;
-        let skippedCount = 0;
-        const isDryRun = process.env.DRY_RUN === 'true';
-        
-        console.log(' Starting template synchronization...');
-        if (isDryRun) {
-          console.log(' DRY RUN MODE - No files will be modified');
-        }
-
-        fileMappings.forEach(mapping => {
-          const templatePath = mapping.template;
-          
-          if (!fs.existsSync(templatePath)) {
-            console.log(`  Template not found: ${templatePath}`);
-            return;
-          }
-
-          console.log(`\n Processing template: ${templatePath}`);
-          const templateContent = fs.readFileSync(templatePath, 'utf8');
-
-          mapping.targets.forEach(targetPath => {
+  - name: Validate Template Files
+    run: |
+      echo "Validating template files..."
+      json_files=$$(find _template -name "*.json" 2>/dev/null || true)
+      if [ -n "$$json_files" ]; then
+        for file in $$json_files; do
+          echo "  Validating: $$file"
+          node -e "
             try {
-              // Create directory if it doesn't exist
-              const targetDir = path.dirname(targetPath);
-              if (!fs.existsSync(targetDir) && !isDryRun) {
-                fs.mkdirSync(targetDir, { recursive: true });
-              }
-
-              // Check if content is different
-              let needsUpdate = true;
-              if (fs.existsSync(targetPath)) {
-                const existingContent = fs.readFileSync(targetPath, 'utf8');
-                needsUpdate = existingContent !== templateContent;
-              }
-
-              if (needsUpdate) {
-                if (!isDryRun) {
-                  fs.writeFileSync(targetPath, templateContent, 'utf8');
-                }
-                changedFiles.push(targetPath);
-                console.log(`   ${isDryRun ? 'Would update' : 'Updated'}: ${targetPath}`);
-                syncedCount++;
-              } else {
-                console.log(`    No changes needed: ${targetPath}`);
-                skippedCount++;
-              }
-            } catch (error) {
-              console.error(`   Failed to process ${targetPath}:`, error.message);
+              JSON.parse(require('fs').readFileSync('$$file', 'utf8'));
+              console.log('     Valid JSON');
+            } catch(e) {
+              console.error('     Invalid JSON:', e.message);
+              process.exit(1);
             }
-          });
-        });
+          "
+        done
+      fi
+      echo " All template files validated successfully"
 
-        console.log(`\n Sync Summary:`);
-        console.log(`   Files ${isDryRun ? 'to be synced' : 'synced'}: ${syncedCount}`);
-        console.log(`   Files skipped: ${skippedCount}`);
-        console.log(`   Total files processed: ${syncedCount + skippedCount}`);
+  - name: Run Template Sync
+    id: sync
+    env:
+      DRY_RUN: $${{ github.event.inputs.dry_run || 'false' }}
+    run: |
+      node << 'EOF'
+      const fs = require('fs');
+      const path = require('path');
 
-        if (changedFiles.length > 0) {
-          console.log(`\n ${isDryRun ? 'Files that would be changed' : 'Changed files'}:`);
-          changedFiles.forEach(file => console.log(`  - ${file}`));
+      // Mapping from templates to targets
+      const fileMappings = [
+        {
+          template: '_template/Viewer/AuthProxy/appsettings.json',
+          targets: [
+            'devops/Viewer/AuthProxy/appsettings.json',
+            'feature/Viewer/AuthProxy/appsettings.json',
+            'synergis/Viewer/AuthProxy/appsettings.json'
+          ]
+        },
+        {
+          template: '_template/Viewer/BIM/appsettings.json',
+          targets: [
+            'devops/Viewer/BIM/appsettings.json',
+            'feature/Viewer/BIM/appsettings.json',
+            'synergis/Viewer/BIM/appsettings.json'
+          ]
+        },
+        {
+          template: '_template/Viewer/Conversion/appsettings.json',
+          targets: [
+            'devops/Viewer/Conversion/appsettings.json',
+            'feature/Viewer/Conversion/appsettings.json',
+            'synergis/Viewer/Conversion/appsettings.json'
+          ]
+        },
+        {
+          template: '_template/Viewer/ConverterWorker/appsettings.json',
+          targets: [
+            'devops/Viewer/ConverterWorker/appsettings.json',
+            'feature/Viewer/ConverterWorker/appsettings.json',
+            'synergis/Viewer/ConverterWorker/appsettings.json'
+          ]
+        },
+        {
+          template: '_template/WebAPI/appsettings.json',
+          targets: [
+            'devops/WebAPI/appsettings.json',
+            'feature/WebAPI/appsettings.json',
+            'synergis/WebAPI/appsettings.json'
+          ]
+        },
+        {
+          template: '_template/WebAPI/AdeptTenantLicense.json',
+          targets: [
+            'devops/WebAPI/AdeptTenantLicense.json',
+            'feature/WebAPI/AdeptTenantLicense.json',
+            'synergis/WebAPI/AdeptTenantLicense.json'
+          ]
+        },
+        {
+          template: '_template/WebAPI/cognito-users.json',
+          targets: [
+            'devops/WebAPI/cognito-users.json',
+            'feature/WebAPI/cognito-users.json',
+            'synergis/WebAPI/cognito-users.json'
+          ]
+        },
+        {
+          template: '_template/WebUI/AdeptViewerConfiguration.json',
+          targets: [
+            'devops/WebUI/AdeptViewerConfiguration.json',
+            'feature/WebUI/AdeptViewerConfiguration.json',
+            'synergis/WebUI/AdeptViewerConfiguration.json'
+          ]
+        },
+        {
+          template: '_template/Streaming/Config.js',
+          targets: [
+            'devops/Streaming/Config.js',
+            'feature/Streaming/Config.js'
+          ]
+        },
+        {
+          template: '_template/WebUI/.env',
+          targets: [
+            'synergis/WebUI/.env'
+          ]
+        }
+      ];
+
+      let changedFiles = [];
+      let syncedCount = 0;
+      let skippedCount = 0;
+      const isDryRun = process.env.DRY_RUN === 'true';
+
+      console.log(' Starting template synchronization...');
+      if (isDryRun) {
+        console.log(' DRY RUN MODE - No files will be modified');
+      }
+
+      fileMappings.forEach(mapping => {
+        const templatePath = mapping.template;
+
+        if (!fs.existsSync(templatePath)) {
+          console.log(`  Template not found: $${templatePath}`);
+          return;
         }
 
-        // Set outputs for GitHub Actions
-        console.log(`::set-output name=files-changed::${syncedCount}`);
-        console.log(`::set-output name=changed-files::${changedFiles.join(',')}`);
-        console.log(`::set-output name=summary::Synced: ${syncedCount}, Skipped: ${skippedCount}`);
-        
-        EOF
-      env:
-        DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        console.log(`\n Processing template: $${templatePath}`);
+        const templateContent = fs.readFileSync(templatePath, 'utf8');
 
-    - name: Check for Changes
-      id: changes
-      run: |
-        if [ "${{ steps.sync.outputs.files-changed }}" -gt 0 ]; then
-          echo "has_changes=true" >> $GITHUB_OUTPUT
-          echo " ${{ steps.sync.outputs.files-changed }} files need updates"
-        else
-          echo "has_changes=false" >> $GITHUB_OUTPUT
-          echo " All files are already up to date"
-        fi
+        mapping.targets.forEach(targetPath => {
+          try {
+            // Create directory if it doesn't exist
+            const targetDir = path.dirname(targetPath);
+            if (!fs.existsSync(targetDir) && !isDryRun) {
+              fs.mkdirSync(targetDir, { recursive: true });
+            }
 
-    - name: Display Changes (Pull Request)
-      if: github.event_name == 'pull_request'
-      run: |
-        echo "##  Template Sync Preview" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Event:** Pull Request Preview" >> $GITHUB_STEP_SUMMARY
-        echo "**Summary:** ${{ steps.sync.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        
-        if [ "${{ steps.changes.outputs.has_changes }}" == "true" ]; then
-          echo "###  Files that will be updated when merged:" >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.sync.outputs.changed-files }}' | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo " **Note:** Files will be automatically updated after this PR is merged." >> $GITHUB_STEP_SUMMARY
-        else
-          echo " No files need updates - all templates are already in sync." >> $GITHUB_STEP_SUMMARY
-        fi
+            // Check if content is different
+            let needsUpdate = true;
+            if (fs.existsSync(targetPath)) {
+              const existingContent = fs.readFileSync(targetPath, 'utf8');
+              needsUpdate = existingContent !== templateContent;
+            }
 
-    - name: Commit Changes
-      if: |
-        steps.changes.outputs.has_changes == 'true' && 
-        github.event_name != 'pull_request' &&
-        github.event.inputs.dry_run != 'true'
-      run: |
-        git config --local user.email "devops-automation@company.com"
-        git config --local user.name "DevOps Template Sync"
-        
-        git add -A
-        git commit -m " Auto-sync: Update configuration files from templates
+            if (needsUpdate) {
+              if (!isDryRun) {
+                fs.writeFileSync(targetPath, templateContent, 'utf8');
+              }
+              changedFiles.push(targetPath);
+              console.log(`   $${isDryRun ? 'Would update' : 'Updated'}: $${targetPath}`);
+              syncedCount++;
+            } else {
+              console.log(`    No changes needed: $${targetPath}`);
+              skippedCount++;
+            }
+          } catch (error) {
+            console.error(`   Failed to process $${targetPath}:`, error.message);
+          }
+        });
+      });
 
-        📊 Summary: ${{ steps.sync.outputs.summary }}
-        🎯 Branch: ${{ github.ref_name }}
-        🕐 Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-        🔗 Workflow: ${{ github.workflow }} (#${{ github.run_number }})"
+      console.log(`\n Sync Summary:`);
+      console.log(`   Files $${isDryRun ? 'to be synced' : 'synced'}: $${syncedCount}`);
+      console.log(`   Files skipped: $${skippedCount}`);
+      console.log(`   Total files processed: $${syncedCount + skippedCount}`);
 
-    - name: Push Changes
-      if: |
-        steps.changes.outputs.has_changes == 'true' && 
-        github.event_name != 'pull_request' &&
-        github.event.inputs.dry_run != 'true'
-      run: git push
+      if (changedFiles.length > 0) {
+        console.log(`\n $${isDryRun ? 'Files that would be changed' : 'Changed files'}:`);
+        changedFiles.forEach(file => console.log(`  - $${file}`));
+      }
 
-    - name: Workflow Summary
-      if: always()
-      run: |
-        echo "## 📊 Template Sync Results" >> $GITHUB_STEP_SUMMARY
-        echo "- **Repository**: ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Branch**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Dry Run**: ${{ github.event.inputs.dry_run || 'false' }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Result**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Files Changed**: ${{ steps.sync.outputs.files-changed }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Timestamp**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🗂️ Template Structure:" >> $GITHUB_STEP_SUMMARY
-        echo "- **Source**: \`_template/\` folder" >> $GITHUB_STEP_SUMMARY
-        echo "- **Targets**: \`devops/\`, \`feature/\`, \`synergis/\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **File Types**: JSON, JS, ENV files" >> $GITHUB_STEP_SUMMARY
+      // Export outputs via env file (replacement for ::set-output)
+      const lines = [
+        `files_changed=$${syncedCount}`,
+        `changed_files=$${changedFiles.join(',')}`,
+        `summary=$${'Synced: ' + syncedCount + ', Skipped: ' + skippedCount}`
+      ];
+      if (process.env.GITHUB_OUTPUT) {
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, lines.join('\n') + '\n');
+      } else {
+        console.warn('GITHUB_OUTPUT is not set; outputs will not be exported.');
+      }
+      EOF
+
+  - name: Check for Changes
+    id: changes
+    run: |
+      if [ "$${{ steps.sync.outputs.files_changed }}" -gt 0 ]; then
+        echo "has_changes=true" >> "$$GITHUB_OUTPUT"
+        echo " $${{ steps.sync.outputs.files_changed }} files need updates"
+      else
+        echo "has_changes=false" >> "$$GITHUB_OUTPUT"
+        echo " All files are already up to date"
+      fi
+
+  - name: Display Changes (Pull Request)
+    if: github.event_name == 'pull_request'
+    run: |
+      echo "##  Template Sync Preview" >> "$$GITHUB_STEP_SUMMARY"
+      echo "" >> "$$GITHUB_STEP_SUMMARY"
+      echo "**Event:** Pull Request Preview" >> "$$GITHUB_STEP_SUMMARY"
+      echo "**Summary:** $${{ steps.sync.outputs.summary }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "" >> "$$GITHUB_STEP_SUMMARY"
+
+      if [ "$${{ steps.changes.outputs.has_changes }}" = "true" ]; then
+        echo "###  Files that will be updated when merged:" >> "$$GITHUB_STEP_SUMMARY"
+        echo '$${{ steps.sync.outputs.changed_files }}' | tr ',' '\n' | sed 's/^/- /' >> "$$GITHUB_STEP_SUMMARY"
+        echo "" >> "$$GITHUB_STEP_SUMMARY"
+        echo " **Note:** Files will be automatically updated after this PR is merged." >> "$$GITHUB_STEP_SUMMARY"
+      else
+        echo " No files need updates - all templates are already in sync." >> "$$GITHUB_STEP_SUMMARY"
+      fi
+
+  - name: Commit Changes
+    if: |
+      steps.changes.outputs.has_changes == 'true' &&
+      github.event_name != 'pull_request' &&
+      (github.event.inputs.dry_run == '' || github.event.inputs.dry_run == 'false')
+    run: |
+      git config --local user.email "devops-automation@company.com"
+      git config --local user.name "DevOps Template Sync"
+
+      git add -A
+      git commit -m "Auto-sync: Update configuration files from templates
+
+      Summary: $${{ steps.sync.outputs.summary }}
+      Branch: $${{ github.ref_name }}
+      Timestamp: $$(date -u +'%Y-%m-%d %H:%M:%S UTC')
+      Workflow: $${{ github.workflow }} (#$${{ github.run_number }})" || echo "No changes to commit"
+
+  - name: Push Changes
+    if: |
+      steps.changes.outputs.has_changes == 'true' &&
+      github.event_name != 'pull_request' &&
+      (github.event.inputs.dry_run == '' || github.event.inputs.dry_run == 'false')
+    run: |
+      # Push back to the current branch
+      git push origin HEAD:$${{ github.ref_name }}
+
+  - name: Workflow Summary
+    if: always()
+    run: |
+      echo "## 📊 Template Sync Results" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Repository: $${{ github.repository }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Branch: $${{ github.ref_name }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Trigger: $${{ github.event_name }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Dry Run: $${{ github.event.inputs.dry_run || 'false' }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Result: $${{ job.status }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Files Changed: $${{ steps.sync.outputs.files_changed }}" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Timestamp: $$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> "$$GITHUB_STEP_SUMMARY"
+      echo "" >> "$$GITHUB_STEP_SUMMARY"
+      echo "### 🗂️ Template Structure:" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Source: _template/ folder" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- Targets: devops/, feature/, synergis/" >> "$$GITHUB_STEP_SUMMARY"
+      echo "- File Types: JSON, JS, ENV files" >> "$$GITHUB_STEP_SUMMARY"*
