@@ -1,9 +1,22 @@
 const fs = require("fs");
 const path = require("path");
 
-const tenants = ["devops", "feature", "synergis"]; // Add more tenants if needed
+const tenants = ["devops", "feature", "synergis"];
 const templateRoot = path.join(__dirname, "..", "_template");
 const repoRoot = path.join(__dirname, "..");
+
+// Tenant-specific overrides
+const tenantOverrides = {
+  "devops/Viewer/AuthProxy/appsettings.json": {
+    IPs: ["10.1.1.10"]
+  },
+  "feature/Viewer/AuthProxy/appsettings.json": {
+    IPs: ["10.2.2.20"]
+  },
+  "synergis/Viewer/AuthProxy/appsettings.json": {
+    IPs: ["10.3.3.30"]
+  }
+};
 
 // Recursively walk through _template folder
 function syncTemplates(dir, relativePath = "") {
@@ -15,20 +28,31 @@ function syncTemplates(dir, relativePath = "") {
     const stat = fs.statSync(templatePath);
 
     if (stat.isDirectory()) {
-      // Recurse into subdirectory
       syncTemplates(templatePath, relPath);
     } else if (item === "appsettings.json") {
-      // Found appsettings.json -> copy to each tenant
-      tenants.forEach(tenant => {
-        const targetPath = path.join(repoRoot, tenant, relPath);
+      try {
+        const content = JSON.parse(fs.readFileSync(templatePath, "utf8"));
 
-        // Ensure target directory exists
-        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        tenants.forEach(tenant => {
+          const targetPath = path.join(repoRoot, tenant, relPath);
 
-        // Copy file
-        fs.copyFileSync(templatePath, targetPath);
-        console.log(`Synced ${relPath} -> ${tenant}/${relPath}`);
-      });
+          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+          // Merge template + tenant overrides
+          const key = `${tenant}/${relPath.replace(/\\/g, "/")}`;
+          const updated = {
+            ...content,
+            ...(tenantOverrides[key] || {})
+          };
+
+          fs.writeFileSync(targetPath, JSON.stringify(updated, null, 2));
+          console.log(`Synced ${relPath} -> ${tenant}/${relPath}`);
+        });
+
+      } catch (err) {
+        console.error(`❌ Invalid JSON in ${templatePath}: ${err.message}`);
+        process.exit(1);
+      }
     }
   });
 }
