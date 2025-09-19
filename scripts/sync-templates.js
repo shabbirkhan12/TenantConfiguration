@@ -8,18 +8,37 @@ const tenants = ["devops", "feature", "synergis"];
 const templateRoot = path.join(__dirname, "..", "_template");
 const repoRoot = path.join(__dirname, "..");
 
-// Tenant-specific overrides (add more overrides as needed)
+// Tenant-specific overrides (can include nested keys)
 const tenantOverrides = {
   "devops/Viewer/AuthProxy/appsettings.json": {
-    IPs: ["10.1.1.10"]
+    AllowedOrigins: { IPs: ["10.1.1.10"] }
   },
   "feature/Viewer/AuthProxy/appsettings.json": {
-    IPs: ["10.2.2.20"]
+    AllowedOrigins: { IPs: ["10.2.2.20"] }
   },
   "synergis/Viewer/AuthProxy/appsettings.json": {
-    IPs: ["10.3.3.30"]
+    AllowedOrigins: { IPs: ["10.3.3.30"] }
   }
 };
+
+// Deep merge helper
+function deepMerge(target, source) {
+  for (const key of Object.keys(source)) {
+    if (
+      source[key] &&
+      typeof source[key] === "object" &&
+      !Array.isArray(source[key])
+    ) {
+      if (!target[key] || typeof target[key] !== "object") {
+        target[key] = {};
+      }
+      deepMerge(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
 
 // Recursive function to sync templates
 function syncTemplates(dir, relativePath = "") {
@@ -31,7 +50,6 @@ function syncTemplates(dir, relativePath = "") {
     const stat = fs.statSync(templatePath);
 
     if (stat.isDirectory()) {
-      // Recurse into subdirectory
       syncTemplates(templatePath, relPath);
     } else if (item === "appsettings.json") {
       try {
@@ -40,20 +58,15 @@ function syncTemplates(dir, relativePath = "") {
 
         tenants.forEach(tenant => {
           const targetPath = path.join(repoRoot, tenant, relPath);
-
-          // Ensure target directory exists
           fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 
-          // Merge template + tenant overrides safely
+          // Apply tenant-specific overrides (deep merge)
           const key = `${tenant}/${relPath.replace(/\\/g, "/")}`;
-          const updated = { ...content };
+          let updated = { ...content };
           if (tenantOverrides[key]) {
-            Object.keys(tenantOverrides[key]).forEach(k => {
-              updated[k] = tenantOverrides[key][k];
-            });
+            updated = deepMerge(updated, tenantOverrides[key]);
           }
 
-          // Write synced JSON
           fs.writeFileSync(targetPath, JSON.stringify(updated, null, 2));
           console.log(`✅ Synced ${relPath} -> ${tenant}/${relPath}`);
         });
@@ -66,5 +79,5 @@ function syncTemplates(dir, relativePath = "") {
   });
 }
 
-// Start syncing from _template
+// Start syncing
 syncTemplates(templateRoot);
