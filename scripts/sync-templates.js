@@ -1,46 +1,26 @@
 const fs = require("fs");
 const path = require("path");
 
-// Tenants to sync
 const tenants = ["devops", "feature", "synergis"];
-
-// Root paths
 const templateRoot = path.join(__dirname, "..", "_template");
 const repoRoot = path.join(__dirname, "..");
 
-// Tenant-specific overrides (can include nested keys)
-const tenantOverrides = {
-  "devops/Viewer/AuthProxy/appsettings.json": {
-    AllowedOrigins: { IPs: ["10.1.1.10"] }
+// Per-tenant overrides
+const tenantConfig = {
+  devops: {
+    ip: "10.6.46.82",
+    tenantId: 11111114
   },
-  "feature/Viewer/AuthProxy/appsettings.json": {
-    AllowedOrigins: { IPs: ["10.2.2.20"] }
+  feature: {
+    ip: "10.6.46.83",
+    tenantId: 11111113
   },
-  "synergis/Viewer/AuthProxy/appsettings.json": {
-    AllowedOrigins: { IPs: ["10.3.3.30"] }
+  synergis: {
+    ip: "10.3.3.30",
+    tenantId: 11111111
   }
 };
 
-// Deep merge helper
-function deepMerge(target, source) {
-  for (const key of Object.keys(source)) {
-    if (
-      source[key] &&
-      typeof source[key] === "object" &&
-      !Array.isArray(source[key])
-    ) {
-      if (!target[key] || typeof target[key] !== "object") {
-        target[key] = {};
-      }
-      deepMerge(target[key], source[key]);
-    } else {
-      target[key] = source[key];
-    }
-  }
-  return target;
-}
-
-// Recursive function to sync templates
 function syncTemplates(dir, relativePath = "") {
   const items = fs.readdirSync(dir);
 
@@ -51,33 +31,39 @@ function syncTemplates(dir, relativePath = "") {
 
     if (stat.isDirectory()) {
       syncTemplates(templatePath, relPath);
-    } else if (item === "appsettings.json") {
-      try {
-        // Validate template JSON
-        const content = JSON.parse(fs.readFileSync(templatePath, "utf8"));
+    } else if (item.endsWith(".json")) {
+      tenants.forEach(tenant => {
+        const targetPath = path.join(repoRoot, tenant, relPath);
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 
-        tenants.forEach(tenant => {
-          const targetPath = path.join(repoRoot, tenant, relPath);
-          fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        let content = fs.readFileSync(templatePath, "utf8");
 
-          // Apply tenant-specific overrides (deep merge)
-          const key = `${tenant}/${relPath.replace(/\\/g, "/")}`;
-          let updated = { ...content };
-          if (tenantOverrides[key]) {
-            updated = deepMerge(updated, tenantOverrides[key]);
+        try {
+          let json = JSON.parse(content);
+
+          // Override for AuthProxy/appsettings.json
+          if (relPath.endsWith("AuthProxy/appsettings.json")) {
+            if (!json.AllowedOrigins) json.AllowedOrigins = {};
+            json.AllowedOrigins.IPs = [tenantConfig[tenant].ip];
           }
 
-          fs.writeFileSync(targetPath, JSON.stringify(updated, null, 2));
-          console.log(`✅ Synced ${relPath} -> ${tenant}/${relPath}`);
-        });
+          // Override for WebAPI/cognito-users.json
+          if (relPath.endsWith("WebAPI/cognito-users.json")) {
+            if (json.tenants && json.tenants.length > 0) {
+              json.tenants[0].tenantId = tenantConfig[tenant].tenantId;
+            }
+          }
 
-      } catch (err) {
-        console.error(`❌ Invalid JSON in ${templatePath}: ${err.message}`);
-        process.exit(1); // stop workflow
-      }
+          content = JSON.stringify(json, null, 2);
+        } catch (err) {
+          console.error(`❌ Failed to parse JSON in ${templatePath}`, err);
+        }
+
+        fs.writeFileSync(targetPath, content, "utf8");
+        console.log(`✅ Synced ${relPath} -> ${tenant}/${relPath}`);
+      });
     }
   });
 }
 
-// Start syncing
 syncTemplates(templateRoot);

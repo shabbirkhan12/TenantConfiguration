@@ -1,10 +1,9 @@
-name: Sync AppSettings
+name: Sync Templates
 
 on:
   push:
     paths:
       - "_template/**"
-  workflow_dispatch:
 
 jobs:
   sync:
@@ -25,5 +24,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add devops/ feature/ synergis/
-          git commit -m "Synced appsettings.json from _template" || echo "No changes to commit"
+          git commit -m "Synced templates from _template" || echo "No changes to commit"
           git push
