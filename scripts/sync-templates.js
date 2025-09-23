@@ -10,6 +10,10 @@ const tenantConfig = {
   devops: {
     ip: "10.6.46.82",
     tenantId: 11111114,
+    cognito: {
+      tenantId: "11111114",
+      clientId: "1d4lt0fb6f6mqp16l9r2aab9gu"
+    },
     license: {
       tenantName: "devops",
       tenantId: "11111114",
@@ -20,6 +24,10 @@ const tenantConfig = {
   feature: {
     ip: "10.6.46.83",
     tenantId: 11111113,
+    cognito: {
+      tenantId: "11111113",
+      clientId: "4ae59e92sdj533otuufagtuqeo"
+    },
     license: {
       tenantName: "feature",
       tenantId: "11111113",
@@ -30,6 +38,10 @@ const tenantConfig = {
   synergis: {
     ip: "10.3.3.30",
     tenantId: 11111111,
+    cognito: {
+      tenantId: "11111111",
+      clientId: "m6umrvmdmt4tutvs3d6k7h91k"
+    },
     license: {
       tenantName: "synergis",
       tenantId: "11111111",
@@ -59,26 +71,40 @@ function syncTemplates(dir, relativePath = "") {
         try {
           let json = JSON.parse(content);
 
-          // Override for AuthProxy/appsettings.json
+          // --- AuthProxy/appsettings.json overrides ---
           if (relPath.endsWith("AuthProxy/appsettings.json")) {
             if (!json.AllowedOrigins) json.AllowedOrigins = {};
             json.AllowedOrigins.IPs = [tenantConfig[tenant].ip];
           }
 
-          // Override for WebAPI/cognito-users.json
+          // --- WebAPI/cognito-users.json overrides ---
           if (relPath.endsWith("WebAPI/cognito-users.json")) {
             if (json.tenants && json.tenants.length > 0) {
               json.tenants[0].tenantId = tenantConfig[tenant].tenantId;
             }
           }
 
-          // Override for WebAPI/AdeptTenantLicense.json
+          // --- WebAPI/AdeptTenantLicense.json overrides ---
           if (relPath.endsWith("WebAPI/AdeptTenantLicense.json")) {
             const licenseOverrides = tenantConfig[tenant].license;
             json.tenantName = licenseOverrides.tenantName;
             json.tenantId = licenseOverrides.tenantId;
             json.expirationDate = licenseOverrides.expirationDate;
             json.authCode = licenseOverrides.authCode;
+          }
+
+          // --- WebAPI/appsettings.json overrides (Cognito section) ---
+          if (relPath.endsWith("WebAPI/appsettings.json")) {
+            const cog = tenantConfig[tenant].cognito;
+            json.Cognito = {
+              Tenants: {
+                [cog.tenantId]: {
+                  Authority: "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_CrQTXzuRI",
+                  ClientId: cog.clientId,
+                  Scope: "openid email"
+                }
+              }
+            };
           }
 
           content = JSON.stringify(json, null, 2);
