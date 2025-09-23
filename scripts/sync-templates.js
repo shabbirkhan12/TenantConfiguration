@@ -9,15 +9,33 @@ const repoRoot = path.join(__dirname, "..");
 const tenantConfig = {
   devops: {
     ip: "10.6.46.82",
-    tenantId: 11111114
+    tenantId: 11111114,
+    license: {
+      tenantName: "devops",
+      tenantId: "11111114",
+      expirationDate: "2025-12-09T00:00:00",
+      authCode: "dGT95K4rsSFZy/NjxJTuSa9FGqA="
+    }
   },
   feature: {
     ip: "10.6.46.83",
-    tenantId: 11111113
+    tenantId: 11111113,
+    license: {
+      tenantName: "feature",
+      tenantId: "11111113",
+      expirationDate: "2026-08-01T00:00:00",
+      authCode: "1ihO4wnFpicIpdxRXjG0we6Y2m4="
+    }
   },
   synergis: {
     ip: "10.3.3.30",
-    tenantId: 11111111
+    tenantId: 11111111,
+    license: {
+      tenantName: "synergis",
+      tenantId: "11111111",
+      expirationDate: "2025-11-14T00:00:00",
+      authCode: "m1bQ2xl/OBEVx/kNKsrcR38OfbY="
+    }
   }
 };
 
@@ -52,6 +70,15 @@ function syncTemplates(dir, relativePath = "") {
             if (json.tenants && json.tenants.length > 0) {
               json.tenants[0].tenantId = tenantConfig[tenant].tenantId;
             }
+          }
+
+          // Override for WebAPI/AdeptTenantLicense.json
+          if (relPath.endsWith("WebAPI/AdeptTenantLicense.json")) {
+            const licenseOverrides = tenantConfig[tenant].license;
+            json.tenantName = licenseOverrides.tenantName;
+            json.tenantId = licenseOverrides.tenantId;
+            json.expirationDate = licenseOverrides.expirationDate;
+            json.authCode = licenseOverrides.authCode;
           }
 
           content = JSON.stringify(json, null, 2);
