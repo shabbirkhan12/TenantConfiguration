@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "_template/**"
+  workflow_dispatch:
+    
 
 permissions:
   contents: write   # ✅ needed for pushing commits
