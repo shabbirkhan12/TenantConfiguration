@@ -53,14 +53,13 @@ jobs:
         run: |
           git push --set-upstream origin "$SYNC_BRANCH"
 
-      # Create a pull request
-      - name: Create pull request
-        shell: bash
-        run: |
-          gh pr create \
-            --base master \
-            --head "$SYNC_BRANCH" \
-            --title "Sync configs from _template" \
-            --body "This PR was automatically created by GitHub Actions to sync _template changes across all tenant folders."
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Synced configs from _template"
+          branch: ${{ env.SYNC_BRANCH }}
+          title: "Sync configs from _template"
+          body: "This PR was automatically created by GitHub Actions to sync _template changes across all tenant folders."
+          base: master
+          draft: false
