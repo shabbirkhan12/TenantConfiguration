@@ -17,7 +17,7 @@ jobs:
       - name: Checkout Dev branch
         uses: actions/checkout@v4
         with:
-          ref: Dev
+          ref: master
 
       - name: Set up Git configuration
         shell: bash
