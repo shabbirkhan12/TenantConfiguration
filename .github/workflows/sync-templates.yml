@@ -6,11 +6,6 @@ on:
       - master
     paths:
       - "_template/**"
-  pull_request:
-    branches:
-      - master
-    paths:
-      - "_template/**"
   workflow_dispatch:
 
 permissions:
@@ -25,6 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: master
+          fetch-depth: 0   # important: ensures we can diff correctly
 
       - name: Configure Git
         run: |
@@ -36,43 +32,30 @@ jobs:
           TENANTS=("devops" "feature" "synergis")
           for tenant in "${TENANTS[@]}"; do
             mkdir -p "$tenant"
-            rsync -av --delete _template/ "$tenant/"
+            rsync -av --checksum --delete _template/ "$tenant/"
           done
 
-      - name: Debug file differences
+      - name: Check for changes
+        id: check_changes
         run: |
-          echo "Checking which files differ after sync:"
-          git status
-          git diff --name-only | tee diff.txt
-          if [ -s diff.txt ]; then
-            echo "Detected changed files:"
-            cat diff.txt
-          else
-            echo "No actual changes detected. Nothing to commit."
-          fi
-
-      - name: Create and push sync branch if changes exist
-        id: create_branch
-        run: |
-          if git diff --quiet; then
-            echo "No tenant changes detected. Exiting."
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No real content changes detected. Skipping PR."
             echo "skip_pr=true" >> $GITHUB_ENV
-            exit 0
+          else
+            echo "Changes detected, will create PR."
+            echo "skip_pr=false" >> $GITHUB_ENV
+            git diff --cached --name-only > diff.txt
+            cat diff.txt
           fi
-
-          SYNC_BRANCH="sync/template-update-$(date +%s)"
-          git checkout -b "$SYNC_BRANCH"
-          git add devops/ feature/ synergis/
-          git commit -m "Synced configs from _template"
-          git push --set-upstream origin "$SYNC_BRANCH"
-          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
 
       - name: Create Pull Request
         if: env.skip_pr != 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: ${{ env.SYNC_BRANCH }}
+          commit-message: "Sync configs from _template"
+          branch: sync/template-update
           title: "Sync configs from _template"
           body: |
             This PR was automatically created by GitHub Actions to sync `_template` changes across all tenant folders.
@@ -82,4 +65,4 @@ jobs:
             $(cat diff.txt)
             ```
           base: master
-          draft: false
+          delete-branch: true
