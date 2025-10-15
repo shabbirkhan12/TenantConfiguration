@@ -37,14 +37,15 @@ jobs:
       - name: Create sync branch if changes exist
         shell: bash
         run: |
-          git checkout -b "sync/template-update-$(date +%s)"
-          if git diff --quiet; then
+          SYNC_BRANCH="sync/template-update-$(date +%s)"
+          git checkout -b "$SYNC_BRANCH"
+          git add devops/ feature/ synergis/
+          if git diff --cached --quiet; then
             echo "No changes detected in tenant folders. Exiting."
             exit 0
           fi
-          git add devops/ feature/ synergis/
           git commit -m "Synced configs from _template"
-          echo "SYNC_BRANCH=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_ENV
+          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
 
       - name: Push sync branch
         shell: bash
