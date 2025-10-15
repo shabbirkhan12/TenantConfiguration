@@ -1,6 +1,3 @@
 devops/Viewer/WebUI/.env
-devops/Viewer/WebUI/doc_2025-09-12_17-08-47.env
 feature/Viewer/WebUI/.env
-feature/Viewer/WebUI/doc_2025-09-12_17-08-47.env
 synergis/Viewer/WebUI/.env
-synergis/Viewer/WebUI/doc_2025-09-12_17-08-47.env
