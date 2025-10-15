@@ -2,14 +2,20 @@ name: Sync Templates
 
 on:
   push:
+    branches:
+      - master
+    paths:
+      - "_template/**"
+  pull_request:
+    branches:
+      - master
     paths:
       - "_template/**"
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: read
-  checks: read
+  pull-requests: write
 
 jobs:
   sync:
@@ -20,37 +26,39 @@ jobs:
         with:
           ref: master
 
-      - name: Set up Git configuration
-        shell: bash
+      - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
+      - name: Check for _template changes
+        run: |
+          if git diff HEAD^ HEAD --quiet -- _template/; then
+            echo "No _template changes detected. Skipping sync."
+            exit 0
+          fi
+
       - name: Sync _template to tenants
-        shell: bash
         run: |
           TENANTS=("devops" "feature" "synergis")
           for tenant in "${TENANTS[@]}"; do
+            mkdir -p "$tenant"
             rsync -av --delete _template/ "$tenant/"
           done
+          git status
 
-      - name: Create sync branch if changes exist
-        shell: bash
+      - name: Commit and create PR
         run: |
           SYNC_BRANCH="sync/template-update-$(date +%s)"
           git checkout -b "$SYNC_BRANCH"
           git add devops/ feature/ synergis/
           if git diff --cached --quiet; then
-            echo "No changes detected in tenant folders. Exiting."
+            echo "No tenant changes detected. Exiting."
             exit 0
           fi
           git commit -m "Synced configs from _template"
-          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
-
-      - name: Push sync branch
-        shell: bash
-        run: |
           git push --set-upstream origin "$SYNC_BRANCH"
+          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
 
       - name: Create Pull Request
         if: env.SYNC_BRANCH != ''
@@ -60,6 +68,5 @@ jobs:
           commit-message: "Synced configs from _template"
           branch: ${{ env.SYNC_BRANCH }}
           title: "Sync configs from _template"
-          body: "This PR was automatically created by GitHub Actions to sync _template changes across all tenant folders."
+          body: "Auto-synced _template changes to tenant folders."
           base: master
-          draft: false
