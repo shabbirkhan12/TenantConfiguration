@@ -52,25 +52,34 @@ jobs:
           fi
 
       - name: Create and push sync branch if changes exist
+        id: create_branch
         run: |
+          if git diff --quiet; then
+            echo "No tenant changes detected. Exiting."
+            echo "skip_pr=true" >> $GITHUB_ENV
+            exit 0
+          fi
+
           SYNC_BRANCH="sync/template-update-$(date +%s)"
           git checkout -b "$SYNC_BRANCH"
           git add devops/ feature/ synergis/
-          if git diff --cached --quiet; then
-            echo "No tenant changes detected. Exiting."
-            exit 0
-          fi
           git commit -m "Synced configs from _template"
           git push --set-upstream origin "$SYNC_BRANCH"
           echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
 
       - name: Create Pull Request
-        if: env.SYNC_BRANCH != ''
+        if: env.skip_pr != 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Synced configs from _template"
           branch: ${{ env.SYNC_BRANCH }}
           title: "Sync configs from _template"
-          body: "Auto-synced _template changes to tenant folders."
+          body: |
+            This PR was automatically created by GitHub Actions to sync `_template` changes across all tenant folders.
+
+            **Changed tenant files:**
+            ```
+            $(cat diff.txt)
+            ```
           base: master
+          draft: false
