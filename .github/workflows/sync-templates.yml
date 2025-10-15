@@ -13,45 +13,43 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Dev branch
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: Dev
 
       - name: Set up Git configuration
         shell: bash
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
 
-      # Copy changes from _template to tenants
-      - name: Sync _template to tenants
+      - name: Sync _template to tenant folders
         run: |
+          echo "Syncing _template to tenant folders..."
           cp -r _template/* devops/ || true
           cp -r _template/* feature/ || true
           cp -r _template/* synergis/ || true
 
-      # Commit and push changes to a new branch
-      - name: Commit and push changes
-        shell: bash
+      - name: Create and push sync branch
         run: |
           BRANCH_NAME="sync/template-update-$(date +%s)"
           git checkout -b "$BRANCH_NAME"
-          git add devops/ feature/ synergis/
-          git commit -m "Synced configs from _template" || echo "No changes to commit"
-          git push origin "$BRANCH_NAME"
+          git add devops/ feature/ synergis/ || true
+          git commit -m "Sync configs from _template" || echo "No changes to commit"
+          git push origin "$BRANCH_NAME" || echo "No changes pushed"
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
 
-      # Create PR using GitHub API
       - name: Create Pull Request
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH_NAME: ${{ steps.commit.outputs.branch_name }}
         run: |
-          BASE_BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/sync\/template-update-.*//')
-          BRANCH_NAME=$(git branch --show-current)
-          
+          if git diff --quiet origin/Dev...; then
+            echo "No changes detected between Dev and $BRANCH_NAME"
+            exit 0
+          fi
+
           echo "Creating pull request for branch $BRANCH_NAME..."
           gh pr create \
             --base Dev \
