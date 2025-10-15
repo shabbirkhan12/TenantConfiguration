@@ -1,19 +1,19 @@
 {
-  "tenants": [
-    {
-      "tenantId": 11111113,
-      "users": [
+    "tenants": [
         {
-          "login_name": "volodymyr.vedmedera",
-          "user_name": "Volodymyr Vedmedera",
-          "email": "volodymyr.vedmedera@synergis.com"
-        },
-        {
-          "login_name": "steve.ackerman",
-          "user_name": "Steve Ackerman",
-          "email": "Steve.Ackerman@synergis.com"
+            "tenantId": "<tenant-ID>",
+            "users": [
+                {
+                    "login_name": "volodymyr.vedmedera",
+                    "user_name": "Volodymyr Vedmedera",
+                    "email": "volodymyr.vedmedera@synergis.com"
+                },
+                {
+                    "login_name": "steve.ackerman",
+                    "user_name": "Steve Ackerman",
+                    "email": "Steve.Ackerman@synergis.com"
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]    
 }
