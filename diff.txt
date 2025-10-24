@@ -1,3 +1,6 @@
-devops/Viewer/WebUI/.env
-feature/Viewer/WebUI/.env
-synergis/Viewer/WebUI/.env
+devops/WebAPI/AdeptTenantLicense.json
+devops/WebAPI/cognito-users.json
+feature/WebAPI/AdeptTenantLicense.json
+feature/WebAPI/cognito-users.json
+synergis/WebAPI/AdeptTenantLicense.json
+synergis/WebAPI/cognito-users.json
