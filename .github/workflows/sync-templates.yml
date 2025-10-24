@@ -3,7 +3,10 @@ name: Sync Templates
 on:
   push:
     branches:
+      - Dev
       - master
+      - QA
+      - Production
     paths:
       - "_template/**"
   workflow_dispatch:
@@ -19,8 +22,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: master
-          fetch-depth: 0   # important for detecting diffs correctly
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0   # ensures correct diff detection
 
       - name: Configure Git
         run: |
@@ -67,7 +70,7 @@ jobs:
           title: "Sync configs from _template"
           body: |
             This PR was automatically created by GitHub Actions to sync `_template` changes across all tenant folders.
-
+            
             Tenant-specific files (`AdeptTenantLicense.json` and `cognito-users.json`) are intentionally excluded from syncing.
-          base: master
+          base: ${{ github.ref_name }}
           delete-branch: true
