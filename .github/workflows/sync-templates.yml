@@ -20,22 +20,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: master
-          fetch-depth: 0   # ensures proper diff context
+          fetch-depth: 0   # important for detecting diffs correctly
 
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Sync _template to tenants (excluding sensitive files)
+      - name: Sync _template to all tenant folders (excluding sensitive files)
         run: |
-          TENANTS=("devops" "feature" "synergis")
-          for tenant in "${TENANTS[@]}"; do
-            mkdir -p "$tenant"
+          for tenant_dir in */; do
+            tenant_name=$(basename "$tenant_dir")
+
+            # Skip the _template folder itself
+            if [[ "$tenant_name" == "_template" ]]; then
+              echo "Skipping _template folder"
+              continue
+            fi
+
+            echo "Syncing template files to tenant: $tenant_name"
             rsync -av --checksum --delete \
               --exclude 'WebAPI/AdeptTenantLicense.json' \
               --exclude 'WebAPI/cognito-users.json' \
-              _template/ "$tenant/"
+              _template/ "$tenant_name/"
           done
 
       - name: Check for changes
@@ -61,6 +68,6 @@ jobs:
           body: |
             This PR was automatically created by GitHub Actions to sync `_template` changes across all tenant folders.
 
-            Certain tenant-specific files like `AdeptTenantLicense.json` and `cognito-users.json` are intentionally excluded from `_template` sync to preserve per-tenant data.
+            Tenant-specific files (`AdeptTenantLicense.json` and `cognito-users.json`) are intentionally excluded from syncing.
           base: master
           delete-branch: true
