@@ -20,19 +20,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: master
-          fetch-depth: 0   # important: ensures we can diff correctly
+          fetch-depth: 0   # ensures proper diff context
 
       - name: Configure Git
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Sync _template to tenants
+      - name: Sync _template to tenants (excluding sensitive files)
         run: |
           TENANTS=("devops" "feature" "synergis")
           for tenant in "${TENANTS[@]}"; do
             mkdir -p "$tenant"
-            rsync -av --checksum --delete _template/ "$tenant/"
+            rsync -av --checksum --delete \
+              --exclude 'WebAPI/AdeptTenantLicense.json' \
+              --exclude 'WebAPI/cognito-users.json' \
+              _template/ "$tenant/"
           done
 
       - name: Check for changes
@@ -45,8 +48,6 @@ jobs:
           else
             echo "Changes detected, will create PR."
             echo "skip_pr=false" >> $GITHUB_ENV
-            git diff --cached --name-only > diff.txt
-            cat diff.txt
           fi
 
       - name: Create Pull Request
@@ -60,9 +61,6 @@ jobs:
           body: |
             This PR was automatically created by GitHub Actions to sync `_template` changes across all tenant folders.
 
-            **Changed tenant files:**
-            ```
-            $(cat diff.txt)
-            ```
+            Certain tenant-specific files like `AdeptTenantLicense.json` and `cognito-users.json` are intentionally excluded from `_template` sync to preserve per-tenant data.
           base: master
           delete-branch: true
